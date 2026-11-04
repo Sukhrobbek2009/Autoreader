@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Listen to Page</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@600;700&display=swap">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup">
+    <header class="header">
+      <img class="logo" src="icons/icon48.png" alt="" width="28" height="28">
+      <h1>Listen to Page</h1>
+    </header>
+
+    <section class="controls" aria-label="Playback">
+      <button type="button" id="start" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>
+        <span id="start-label">Start</span>
+      </button>
+      <button type="button" id="pause" class="btn btn-secondary" disabled>
+        <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        <svg class="icon-resume is-hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>
+        <span id="pause-label">Pause</span>
+      </button>
+      <button type="button" id="stop" class="btn btn-secondary" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Stop
+      </button>
+    </section>
+
+    <p id="message" class="message" role="status" hidden></p>
+
+    <div class="field">
+      <label for="voice-search">Voice</label>
+      <div class="combo">
+        <input type="text" id="voice-search" class="combo-input" role="combobox"
+               aria-expanded="false" aria-controls="voice-list" aria-autocomplete="list"
+               autocomplete="off" spellcheck="false" placeholder="Search voices or languages…">
+        <ul id="voice-list" class="combo-list" role="listbox" aria-label="Voices" hidden></ul>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-row">
+        <label for="rate">Speed</label>
+        <output id="rate-value" for="rate">1.0×</output>
+      </div>
+      <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1">
+      <div class="scale" aria-hidden="true"><span>0.5×</span><span>2×</span></div>
+    </div>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

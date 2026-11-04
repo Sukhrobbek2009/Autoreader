@@ -1,0 +1,322 @@
+:root {
+  --blue: #0A84FF;
+  --violet: #5E5CE6;
+  /* Slightly deeper blue for filled buttons so white text stays readable (4.5:1+) */
+  --blue-fill: #0071E3;
+
+  --bg: #FFFFFF;
+  --surface: #F2F4F8;
+  --surface-hover: #E6E9F0;
+  --border: #D8DCE6;
+  --text: #14161C;
+  --text-muted: #5B6172;
+  --focus: rgba(10, 132, 255, 0.45);
+
+  --font-heading: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181F;
+    --surface: #222632;
+    --surface-hover: #2C3140;
+    --border: #353A4A;
+    --text: #F2F4F8;
+    --text-muted: #A3A9BA;
+    --focus: rgba(10, 132, 255, 0.6);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 360px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+.popup {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---- Header ---- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo {
+  border-radius: 6px;
+}
+
+h1 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  background: linear-gradient(90deg, var(--blue), var(--violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---- Buttons ---- */
+.controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 8px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.05s, box-shadow 0.15s;
+}
+
+.btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible,
+input[type="range"]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  color: #FFFFFF;
+  background: linear-gradient(135deg, var(--blue-fill), var(--violet));
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-secondary {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-hover);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* ---- Fields ---- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+label {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+#rate-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--blue);
+}
+
+.combo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.combo-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.5' fill='none' stroke='%238A90A2' stroke-width='1.6'/%3E%3Cpath d='m10.5 10.5 3.5 3.5' stroke='%238A90A2' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px 14px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  text-overflow: ellipsis;
+}
+
+.combo-input::placeholder {
+  color: var(--text-muted);
+}
+
+.combo-input:hover {
+  background-color: var(--surface-hover);
+}
+
+.combo-input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.combo-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 168px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.combo-list[hidden] {
+  display: none;
+}
+
+.combo-option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.combo-option.is-active {
+  background: var(--surface-hover);
+}
+
+.combo-option[aria-selected="true"] .combo-name {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.combo-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.combo-lang {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.combo-empty {
+  padding: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ---- Speed slider ---- */
+input[type="range"] {
+  --fill: 33.3%; /* kept in sync with the value by popup.js */
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--blue), var(--violet)) 0 / var(--fill) 100% no-repeat,
+              var(--border);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px; /* centre on the 6px track */
+  border: 3px solid var(--violet);
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- Status message / helpers ---- */
+.is-hidden {
+  display: none;
+}
+
+.message {
+  margin: -4px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.message[hidden] {
+  display: none;
+}
+
+.message.is-error {
+  color: #D70015;
+  border-color: currentColor;
+}
+
+@media (prefers-color-scheme: dark) {
+  .message.is-error {
+    color: #FF6B6B;
+  }
+}
