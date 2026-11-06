@@ -130,4 +130,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ chunks: chunkText(extractText()), source: "page" });
   }
 });
+
+// Speech is produced by chrome.tts in the background, so cancelling speechSynthesis
+// here would do nothing. Instead tell the background this page is going away
+// (navigation, reload, or entering the back/forward cache) so it stops at once.
+window.addEventListener("pagehide", () => {
+  chrome.runtime.sendMessage({ type: "ltp-page-hide" }).catch(() => {});
+});
 })();
