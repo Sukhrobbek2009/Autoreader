@@ -55,7 +55,8 @@ function getReadableRoot() {
 }
 
 const REMOVE_SELECTOR =
-  "script, style, nav, header, footer, form, button, input, select, textarea";
+  "script, style, nav, header, footer, form, button, input, select, textarea, " +
+  "figure, aside, [aria-hidden=\"true\"]";
 
 const CHUNK_TARGET = 200;
 
@@ -114,27 +115,168 @@ function chunkText(text) {
   return chunks;
 }
 
-// ---- Messaging -------------------------------------------------------------
-// Speech itself lives in background.js (chrome.tts); this script only extracts
-// the page text and hands back the chunks.
+// ---- Messaging and in-page speech ----------------------------------------------
+// Chrome speaks through chrome.tts in background.js. Safari has no chrome.tts, so
+// there the queue below speaks with speechSynthesis in the page and reports its
+// status to the background. In Chrome the "ltp-cs-*" messages are never sent.
+
+function collectChunks() {
+  // If the user has highlighted text, read only that; otherwise the whole article.
+  const selected = (window.getSelection() || "").toString().replace(/\s+/g, " ").trim();
+  if (selected) return { chunks: chunkText(selected), source: "selection" };
+  return { chunks: chunkText(extractText()), source: "page" };
+}
+
+let pageQueue = [];
+let pageIndex = 0;
+let pageActive = false;   // true between start and the last chunk / stop
+let pagePaused = false;   // tracked here: speechSynthesis.paused lags behind pause()
+let pageSession = 0;      // bumped on every start/stop so stale callbacks are ignored
+let pageSource = null;
+let pageOptions = {};
+let pageUtterance = null; // held so the engine doesn't garbage-collect it mid-speech
+let tapButton = null;     // shown when the browser blocks speech until the user clicks
+
+function pageStatus() {
+  const paused = pageActive && pagePaused;
+  return {
+    playing: pageActive && !paused,
+    paused,
+    chunksLeft: pageActive ? pageQueue.length - pageIndex : 0,
+    source: pageActive ? pageSource : null,
+  };
+}
+
+function pushStatus() {
+  chrome.runtime.sendMessage({ type: "ltp-cs-status", status: pageStatus() }).catch(() => {});
+}
+
+/** Speaks the current chunk; when it ends, advances and speaks the next. */
+function speakNextInPage() {
+  if (!pageActive) return;
+  if (pageIndex >= pageQueue.length) {
+    pageActive = false;
+    pageUtterance = null;
+    pushStatus();
+    return;
+  }
+
+  const mySession = pageSession;
+  const utterance = new SpeechSynthesisUtterance(pageQueue[pageIndex]);
+  if (pageOptions.rate) utterance.rate = pageOptions.rate;
+  if (pageOptions.volume !== undefined) utterance.volume = pageOptions.volume;
+  if (pageOptions.voiceName) {
+    const voice = speechSynthesis.getVoices().find((v) => v.name === pageOptions.voiceName);
+    if (voice) utterance.voice = voice;
+  }
+
+  utterance.onend = () => {
+    if (mySession !== pageSession) return; // stopped or restarted
+    pageIndex++;
+    speakNextInPage();
+  };
+  utterance.onerror = (event) => {
+    if (mySession !== pageSession) return;
+    if (event.error === "canceled" || event.error === "interrupted") return;
+    if (event.error === "not-allowed") {
+      showTapToStart(); // needs a real click on the page first
+      return;
+    }
+    console.error("Listen to Page: speech error:", event.error);
+    stopInPage();
+    pushStatus();
+  };
+
+  pageUtterance = utterance;
+  speechSynthesis.speak(utterance);
+  pushStatus();
+}
+
+/** Some browsers refuse speech until the user has clicked the page; offer a button for that. */
+function showTapToStart() {
+  if (tapButton) return;
+  tapButton = document.createElement("button");
+  tapButton.textContent = "▶ Click to start reading";
+  tapButton.style.cssText =
+    "position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:10px 16px;" +
+    "border:0;border-radius:10px;background:#0071E3;color:#fff;cursor:pointer;" +
+    "font:600 14px system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.35);";
+  tapButton.addEventListener("click", () => {
+    removeTapButton();
+    speakNextInPage(); // runs inside the click, so it counts as a user gesture
+  });
+  document.documentElement.append(tapButton);
+}
+
+function removeTapButton() {
+  if (tapButton) {
+    tapButton.remove();
+    tapButton = null;
+  }
+}
+
+function startInPage(options) {
+  stopInPage();
+  const { chunks, source } = collectChunks();
+  if (chunks.length === 0) return;
+  pageQueue = chunks;
+  pageSource = source;
+  pageIndex = 0;
+  pageOptions = options;
+  pageActive = true;
+  pagePaused = false;
+  speakNextInPage();
+}
+
+function stopInPage() {
+  pageSession++; // invalidate callbacks from the utterance being cancelled
+  pageActive = false;
+  pagePaused = false;
+  pageQueue = [];
+  pageIndex = 0;
+  pageUtterance = null;
+  removeTapButton();
+  speechSynthesis.cancel();
+  // A pause can outlive cancel(), which would leave the next start silent.
+  if (speechSynthesis.paused) speechSynthesis.resume();
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return; // only our own extension
-  if (!message || message.type !== "ltp-extract") return;
+  if (!message) return;
 
-  // If the user has highlighted text, read only that; otherwise the whole article.
-  const selected = (window.getSelection() || "").toString().replace(/\s+/g, " ").trim();
-  if (selected) {
-    sendResponse({ chunks: chunkText(selected), source: "selection" });
-  } else {
-    sendResponse({ chunks: chunkText(extractText()), source: "page" });
+  switch (message.type) {
+    case "ltp-extract":
+      sendResponse(collectChunks());
+      return;
+    case "ltp-cs-start":
+      startInPage(message.options || {});
+      break;
+    case "ltp-cs-stop":
+      stopInPage();
+      break;
+    case "ltp-cs-pause":
+      if (pageActive) {
+        pagePaused = true;
+        speechSynthesis.pause();
+      }
+      break;
+    case "ltp-cs-resume":
+      if (pageActive) {
+        pagePaused = false;
+        speechSynthesis.resume();
+      }
+      break;
+    default:
+      return; // not ours
   }
+  sendResponse(pageStatus());
 });
 
-// Speech is produced by chrome.tts in the background, so cancelling speechSynthesis
-// here would do nothing. Instead tell the background this page is going away
-// (navigation, reload, or entering the back/forward cache) so it stops at once.
+// Navigation, reload, or entering the back/forward cache: the voice must not outlive the page.
+// In-page speech (Safari) is cancelled here; the background is told so it stops chrome.tts too.
 window.addEventListener("pagehide", () => {
+  speechSynthesis.cancel();
   chrome.runtime.sendMessage({ type: "ltp-page-hide" }).catch(() => {});
 });
 })();

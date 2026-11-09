@@ -48,12 +48,23 @@ function describeLanguage(lang) {
   }
 }
 
+// macOS's built-in gimmick voices (they sing, hum or sound deliberately strange).
+const NOVELTY_VOICES = new Set([
+  "albert", "bad news", "bahh", "bells", "boing", "bubbles", "cellos", "good news",
+  "jester", "organ", "superstar", "trinoids", "whisper", "wobble", "zarvox",
+]);
+
+function isNovelty(name) {
+  // ignore a trailing "(...)" qualifier, e.g. "Albert (English (US))"
+  return NOVELTY_VOICES.has(name.replace(/\s*\(.*\)\s*$/, "").trim().toLowerCase());
+}
+
 /** Reads speechSynthesis's current voices. It can be empty at first and fire "voiceschanged" later. */
 function loadVoices() {
   const seen = new Set();
   const loaded = [];
   for (const v of speechSynthesis.getVoices()) {
-    if (!v.name || seen.has(v.name)) continue;
+    if (!v.name || seen.has(v.name) || isNovelty(v.name)) continue;
     seen.add(v.name);
     const langName = describeLanguage(v.lang);
     loaded.push({

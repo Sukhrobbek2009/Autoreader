@@ -1,7 +1,13 @@
 console.log("Listen to Page: background.js loaded");
 
-// ---- Speech queue (chrome.tts) ---------------------------------------------
-// chrome.tts has no autoplay restriction, unlike speechSynthesis in a page.
+// ---- Speech queue ------------------------------------------------------------
+// Chrome: speak here with chrome.tts (no autoplay restriction, unlike speechSynthesis
+// in a page). Safari has no chrome.tts, so there the content script speaks with
+// speechSynthesis and pushes its status back; this worker only relays commands.
+
+let nativeTts = typeof chrome.tts !== "undefined" && typeof chrome.tts.speak === "function";
+const IDLE = { playing: false, paused: false, chunksLeft: 0, source: null };
+let pageStatus = IDLE; // last status pushed by the content script (in-page mode)
 
 let queue = [];
 let queueIndex = 0;
@@ -45,6 +51,8 @@ async function startReading(options = {}) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
 
+  if (!nativeTts) return startInPage(tab, options);
+
   let response;
   try {
     response = await chrome.tabs.sendMessage(tab.id, { type: "ltp-extract" });
@@ -58,6 +66,7 @@ async function startReading(options = {}) {
   speechOptions = {};
   if (options.rate) speechOptions.rate = options.rate;
   if (options.voiceName) speechOptions.voiceName = options.voiceName;
+  if (options.volume !== undefined) speechOptions.volume = options.volume;
 
   queue = response.chunks;
   source = response.source;
@@ -72,26 +81,61 @@ function stopReading() {
   session++; // invalidate callbacks from the utterance being interrupted
   speaking = false;
   paused = false;
-  readingTabId = null;
   queue = [];
   queueIndex = 0;
-  chrome.tts.stop();
+  if (nativeTts) {
+    chrome.tts.stop();
+  } else if (readingTabId !== null) {
+    sendToPage("ltp-cs-stop"); // the page may already be gone; failures are ignored
+  }
+  readingTabId = null;
+  pageStatus = IDLE;
 }
 
 function pauseReading() {
-  if (!speaking || paused) return;
-  paused = true;
-  chrome.tts.pause();
+  if (nativeTts) {
+    if (!speaking || paused) return;
+    paused = true;
+    chrome.tts.pause();
+  } else if (pageStatus.playing) {
+    sendToPage("ltp-cs-pause");
+  }
 }
 
 function resumeReading() {
-  if (!speaking || !paused) return;
-  paused = false;
-  chrome.tts.resume();
+  if (nativeTts) {
+    if (!speaking || !paused) return;
+    paused = false;
+    chrome.tts.resume();
+  } else if (pageStatus.paused) {
+    sendToPage("ltp-cs-resume");
+  }
+}
+
+// ---- In-page speech (no chrome.tts) -------------------------------------------
+
+/** Sends a command to the tab being read and records the status it answers with. */
+async function sendToPage(type, extra = {}) {
+  if (readingTabId === null) return;
+  try {
+    const status = await chrome.tabs.sendMessage(readingTabId, { type, ...extra });
+    if (status) pageStatus = status;
+  } catch {
+    // tab closed or navigated away
+    readingTabId = null;
+    pageStatus = IDLE;
+  }
+}
+
+async function startInPage(tab, options) {
+  readingTabId = tab.id;
+  await sendToPage("ltp-cs-start", { options });
+  if (!pageStatus.playing && !pageStatus.paused) readingTabId = null; // nothing readable
 }
 
 /** playing: audio is being produced; paused: reading but on hold. */
 function getStatus() {
+  if (!nativeTts) return pageStatus;
   return {
     playing: speaking && !paused,
     paused: speaking && paused,
@@ -109,7 +153,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
     case "ltp-start":
       // Async: extraction happens in the tab before we can report status.
-      startReading({ rate: message.rate, voiceName: message.voiceName }).then(
+      startReading({ rate: message.rate, voiceName: message.voiceName, volume: message.volume }).then(
         () => sendResponse(getStatus())
       );
       return true; // keep the channel open for the async response
@@ -128,6 +172,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // The page being read navigated away or unloaded: stop immediately.
       if (sender.tab && sender.tab.id === readingTabId) stopReading();
       break;
+    case "ltp-cs-status":
+      // In-page mode: the content script reports progress (chunk finished, etc.)
+      if (sender.tab && sender.tab.id === readingTabId) {
+        pageStatus = message.status;
+        if (!pageStatus.playing && !pageStatus.paused) readingTabId = null;
+      }
+      return; // no reply needed
     default:
       return; // not ours
   }
@@ -137,7 +188,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ---- Stop when the tab being read is closed -----------------------------------
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  if (speaking && tabId === readingTabId) stopReading();
+  if (tabId === readingTabId) stopReading();
 });
 
 // ---- Keyboard shortcut (toggle-reading) -------------------------------------
